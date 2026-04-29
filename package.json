@@ -1,34 +1,52 @@
 {
   "name": "impeccable-react",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
+  "description": "Skills, commands, and a detector that stop AI assistants from shipping generic UI.",
   "type": "module",
+  "license": "MIT",
+  "bin": {
+    "impeccable": "./dist/cli/cli.js"
+  },
+  "main": "./dist/cli/index.js",
+  "types": "./dist/cli/index.d.ts",
+  "files": [
+    "dist/",
+    "skills/",
+    "commands/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext ts,tsx --max-warnings 0",
-    "typecheck": "tsc --noEmit"
+    "build": "npm run build:cli && npm run build:bundles",
+    "build:cli": "tsc -p tsconfig.build.json",
+    "build:bundles": "tsx scripts/build-bundles.ts",
+    "verify": "tsx scripts/verify-skills.ts",
+    "scan": "tsx src/cli.ts scan",
+    "test": "node --import tsx --test 'tests/**/*.spec.ts'",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run verify && npm run build"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.1",
-    "@typescript-eslint/eslint-plugin": "^8.12.2",
-    "@typescript-eslint/parser": "^8.12.2",
-    "@vitejs/plugin-react": "^4.3.2",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^9.13.0",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "eslint-plugin-react-refresh": "^0.4.13",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.14",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.9"
-  }
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "keywords": [
+    "ai",
+    "skills",
+    "claude",
+    "codex",
+    "cursor",
+    "copilot",
+    "ui",
+    "linter",
+    "detector",
+    "anti-pattern"
+  ]
 }
