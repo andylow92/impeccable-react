@@ -59,6 +59,7 @@ Return **only** JSON with this exact shape and stable key order:
     {
       "ruleId": "ts-explicit-return-type",
       "source": "impeccable-typescript",
+      "antiPatternId": null,
       "location": {
         "path": "src/lib/math.ts",
         "line": 20
@@ -76,8 +77,10 @@ Contract requirements:
 - `blockers`: required array (use `[]` when none).
 - `warnings`: required array (use `[]` when none).
 - `source`: enum, one of `"impeccable-ui" | "impeccable-react" | "impeccable-typescript"`.
-- `antiPatternId`: optional string; use `null` or omit only when not applicable.
+- `antiPatternId`: always present on each finding item; type is `string | null` (`null` when not applicable; never omit).
 - Every item must include `ruleId`, `location.path`, `location.line`, `message`, and `fix`.
+- Preserve key ordering exactly as shown (`ruleId`, `source`, `antiPatternId`, `location`, `message`, `fix`) for deterministic CI consumption.
+- Output must be strict, parseable JSON only (no markdown wrappers, comments, trailing commas, or extra top-level keys).
 
 ## Severity rubric
 - `fail`: One or more `blockers` entries exist.
