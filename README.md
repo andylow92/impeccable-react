@@ -61,7 +61,9 @@ Exit codes: `0` if no `fail` findings (and no `warn` with `--strict`). `1` if fi
 
 ## What ships today
 
-- 3 skills: `impeccable-ui`, `impeccable-react`, `impeccable-typescript` — each with frontmatter and (where applicable) `references/` and `anti-patterns/` subtrees.
+- Upgraded skill quality: the shipped skills (`impeccable-ui`, `impeccable-react`, `impeccable-typescript`) are packaged with stricter frontmatter contracts and cleaner handoffs between guidance, references, and anti-pattern docs.
+- Upgraded reference + anti-pattern quality: detector-backed anti-pattern documentation is treated as first-class content, so authored guidance and linted behavior stay aligned instead of drifting.
+- Stricter command contracts: command metadata is validated more aggressively so command slugs and `uses_skills` / `uses_references` links resolve deterministically.
 - 3 detector rules: `ui-uniform-radius`, `ui-generic-saas-card` (confidence-scored), `ts-no-any`.
 - 2 reporters: `human` (default), `json`.
 - 2 target adapters: `claude-code`, `codex`.
@@ -71,6 +73,20 @@ Exit codes: `0` if no `fail` findings (and no `warn` with `--strict`). `1` if fi
   - command slugs that aren't `"/word"` or `"/word subword..."` (kebab tokens, single spaces)
   - `uses_skills` / `uses_references` ids that don't resolve
 - Adapter snapshot tests that fail when generated output drifts (`UPDATE_SNAPSHOTS=1 npm test` to refresh).
+
+## Skill maturity
+
+### Production-ready guidance (now)
+
+- Skill/frontmatter validation is enforced in CI and blocks invalid joins across skills, rules, references, and anti-pattern docs.
+- The current guidance set is intended for immediate use with the shipping adapters (`claude-code`, `codex`) and detector rules.
+- Command contracts are strict enough to rely on in team workflows (stable slash command shape + resolvable skill/reference links).
+
+### Roadmap items (later, pre-adapter expansion)
+
+- Expand guidance depth first: add more rules, references, and anti-pattern docs before broadening adapter surface area.
+- Add ecosystem features that strengthen feedback loops (for example, SARIF output, config-file controls, and richer rule coverage).
+- Keep adapter status unchanged in this sprint: no Cursor/Copilot expansion until the guidance corpus and detector contract are further matured.
 
 ---
 
