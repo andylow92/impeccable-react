@@ -7,6 +7,24 @@ import { ALL_RULES } from "../src/detector/rules/index.js";
 
 type Problem = { kind: "error" | "warning"; where: string; field?: string; message: string };
 
+const REQUIRED_REFERENCE_SECTIONS = [
+  "Intent",
+  "Non-negotiable rules",
+  "Anti-patterns and failure cues",
+  "Rewrite protocol",
+  "Quick pass/fail checklist",
+  "Before/after mini examples",
+] as const;
+
+const REQUIRED_COMMAND_SECTIONS = [
+  "Purpose",
+  "Inputs",
+  "Procedure",
+  "Output schema",
+  "Severity rubric",
+  "Example invocation + example output",
+] as const;
+
 function main(): void {
   const root = resolve(process.cwd());
   const problems: Problem[] = [];
@@ -140,6 +158,28 @@ function main(): void {
     }
   }
 
+  // 6) Reference markdown section set + order.
+  for (const s of skills) {
+    for (const r of s.references) {
+      validateRequiredSections({
+        problems,
+        where: r.sourcePath,
+        body: r.body,
+        requiredSections: REQUIRED_REFERENCE_SECTIONS,
+      });
+    }
+  }
+
+  // 7) Command markdown section set + order.
+  for (const c of commands) {
+    validateRequiredSections({
+      problems,
+      where: c.sourcePath,
+      body: c.body,
+      requiredSections: REQUIRED_COMMAND_SECTIONS,
+    });
+  }
+
   if (problems.length === 0) {
     process.stdout.write(
       `verify-skills: OK — ${skills.length} skill(s), ${commands.length} command(s), ${ALL_RULES.length} rule(s)\n`,
@@ -154,6 +194,59 @@ function main(): void {
   }
   const errCount = problems.filter((p) => p.kind === "error").length;
   process.exit(errCount > 0 ? 1 : 0);
+}
+
+function collectHeadings(markdown: string): string[] {
+  return markdown
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("## "))
+    .map((line) => line.slice(3).trim());
+}
+
+function validateRequiredSections({
+  problems,
+  where,
+  body,
+  requiredSections,
+}: {
+  problems: Problem[];
+  where: string;
+  body: string;
+  requiredSections: readonly string[];
+}): void {
+  const headings = collectHeadings(body);
+  const positions = new Map<string, number>();
+  headings.forEach((h, idx) => {
+    if (!positions.has(h)) positions.set(h, idx);
+  });
+
+  for (const section of requiredSections) {
+    if (!positions.has(section)) {
+      problems.push({
+        kind: "error",
+        where,
+        field: "sections",
+        message: `missing required section "${section}"`,
+      });
+    }
+  }
+
+  let previousPos = -1;
+  for (const section of requiredSections) {
+    const pos = positions.get(section);
+    if (pos === undefined) continue;
+    if (pos < previousPos) {
+      problems.push({
+        kind: "error",
+        where,
+        field: "sections",
+        message: `out-of-order section "${section}"`,
+      });
+    } else {
+      previousPos = pos;
+    }
+  }
 }
 
 main();
