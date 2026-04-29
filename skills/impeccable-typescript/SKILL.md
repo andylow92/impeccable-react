@@ -7,7 +7,8 @@ voice: directive
 applies_to:
   - "**/*.ts"
   - "**/*.tsx"
-references: []
+references:
+  - domain-types
 anti_patterns:
   - no-any
 commands:
