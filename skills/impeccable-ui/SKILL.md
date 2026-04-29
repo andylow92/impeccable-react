@@ -12,6 +12,11 @@ applies_to:
 references:
   - typography
   - color-contrast
+  - spatial-design
+  - motion-design
+  - interaction-design
+  - responsive-design
+  - ux-writing
 anti_patterns:
   - generic-saas-card
   - uniform-radius
