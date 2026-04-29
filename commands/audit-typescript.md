@@ -12,33 +12,88 @@ outputs:
     schema: audit-report-v1
 uses_skills:
   - impeccable-typescript
+uses_references:
+  - domain-types
 severity_threshold: fail
 ---
 
 # /impeccable audit-typescript
 
-You are auditing a TypeScript file against the hard rules in
-`impeccable-typescript`.
+## Purpose
+Audit TypeScript targets against hard rules and produce deterministic, parseable findings.
+
+## Inputs
+- `target` (required, `path`): `.ts`/`.tsx` file or directory.
 
 ## Procedure
-1. Search for any of: `: any`, `as any`, `<any>`, `any[]`. Each occurrence is
-   a `fail`.
-2. Search for `await fetch(...)` or `JSON.parse(...)` not followed by a
-   `.parse(` call within the same expression. Each occurrence is a `warn`.
-3. Search for exported functions whose return type is inferred. Each is a
-   `warn`.
-4. Search for type literals that re-declare a domain type already exported
-   from `src/domain/*`. Each is a `fail`.
+1. Detect forbidden `any` usage (`: any`, `as any`, `<any>`, `any[]`); record each as `fail`.
+2. Detect `await fetch(...)` or `JSON.parse(...)` results not validated through `.parse(...)` in the same expression; record each as `warn`.
+3. Detect exported functions with inferred return types; record each as `warn`.
+4. Detect local type literals that duplicate a domain type from `src/domain/*`; record each as `fail`.
+5. Compute verdict from findings.
+6. Emit JSON that exactly matches the output schema.
 
-## Output (JSON, conforms to `audit-report-v1`)
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
 
 ```json
 {
-  "verdict": "pass | warn | fail",
+  "schemaVersion": "audit-report-v1",
+  "verdict": "pass",
   "findings": [
-    { "rule": "ts-no-any", "severity": "fail", "where": "lib/api.ts:14", "snippet": "function load(data: any) {", "fix": "..." }
+    {
+      "ruleId": "ts-no-any",
+      "severity": "fail",
+      "location": {
+        "path": "src/lib/api.ts",
+        "line": 14
+      },
+      "snippet": "function load(data: any) {",
+      "message": "Forbidden any usage.",
+      "fix": "Replace any with a concrete type or unknown + parser."
+    }
   ]
 }
 ```
 
-Do not propose patches in this command. Use a follow-up command for that.
+Contract requirements:
+- `schemaVersion`: enum, must be `"audit-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `findings`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- Every finding must include all keys shown above.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: One or more `fail` findings exist.
+- `warn`: No `fail` findings and at least one `warn` finding exists.
+- `pass`: `findings` is empty.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable audit-typescript target=src/lib
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "audit-report-v1",
+  "verdict": "fail",
+  "findings": [
+    {
+      "ruleId": "ts-no-any",
+      "severity": "fail",
+      "location": {
+        "path": "src/lib/api.ts",
+        "line": 14
+      },
+      "snippet": "function load(data: any) {",
+      "message": "Forbidden any usage.",
+      "fix": "Replace any with validated input types."
+    }
+  ]
+}
+```
