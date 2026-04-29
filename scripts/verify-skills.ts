@@ -1,11 +1,11 @@
 #!/usr/bin/env tsx
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { loadSkills } from "../src/skills/index.js";
-import { loadCommands } from "../src/commands/index.js";
+import { loadSkills, type LoadedSkill } from "../src/skills/index.js";
+import { loadCommands, type LoadedCommand } from "../src/commands/index.js";
 import { ALL_RULES } from "../src/detector/rules/index.js";
 
-type Problem = { kind: "error" | "warning"; where: string; message: string };
+type Problem = { kind: "error" | "warning"; where: string; field?: string; message: string };
 
 function main(): void {
   const root = resolve(process.cwd());
@@ -18,50 +18,60 @@ function main(): void {
     problems.push({ kind: "error", where: "skills/", message: "missing skills directory" });
   }
 
-  const skills = existsSync(skillsDir) ? loadSkills(skillsDir) : [];
-  const commands = existsSync(commandsDir) ? loadCommands(commandsDir) : [];
+  const skills: LoadedSkill[] = existsSync(skillsDir) ? loadSkills(skillsDir) : [];
+  const commands: LoadedCommand[] = existsSync(commandsDir) ? loadCommands(commandsDir) : [];
 
   // 1) Skill ids unique.
-  const skillIds = new Set<string>();
+  const seenSkillIds = new Set<string>();
   for (const s of skills) {
-    if (skillIds.has(s.id)) {
-      problems.push({ kind: "error", where: s.sourcePath, message: `duplicate skill id: ${s.id}` });
+    if (seenSkillIds.has(s.id)) {
+      problems.push({
+        kind: "error",
+        where: s.sourcePath,
+        field: "id",
+        message: `duplicate skill id: ${s.id}`,
+      });
     }
-    skillIds.add(s.id);
+    seenSkillIds.add(s.id);
   }
 
-  // 2) Reference parents must match the containing skill.
+  // 2) Reference parents must match the containing skill, and declared
+  //    references in skill frontmatter must exist on disk.
+  const allReferenceIds = new Set<string>();
   for (const s of skills) {
     for (const r of s.references) {
+      allReferenceIds.add(r.id);
       if (r.parent !== s.id) {
         problems.push({
           kind: "error",
           where: r.sourcePath,
-          message: `reference parent "${r.parent}" does not match containing skill "${s.id}"`,
+          field: "parent",
+          message: `parent "${r.parent}" does not match containing skill "${s.id}"`,
         });
       }
     }
-    // 3) References declared in skill frontmatter must exist on disk.
     const refIds = new Set(s.references.map((r) => r.id));
     for (const declared of s.declaredReferences) {
       if (!refIds.has(declared)) {
         problems.push({
           kind: "error",
           where: s.sourcePath,
-          message: `references[${declared}] is declared but no references/${declared}.md exists`,
+          field: `references[${declared}]`,
+          message: `is declared but no references/${declared}.md exists`,
         });
       }
     }
   }
 
-  // 4) Anti-pattern parents must match.
+  // 3) Anti-pattern parents must match, declared anti-patterns must exist.
   for (const s of skills) {
     for (const ap of s.antiPatterns) {
       if (ap.parent !== s.id) {
         problems.push({
           kind: "error",
           where: ap.sourcePath,
-          message: `anti-pattern parent "${ap.parent}" does not match containing skill "${s.id}"`,
+          field: "parent",
+          message: `parent "${ap.parent}" does not match containing skill "${s.id}"`,
         });
       }
     }
@@ -71,13 +81,14 @@ function main(): void {
         problems.push({
           kind: "error",
           where: s.sourcePath,
-          message: `anti_patterns[${declared}] is declared but no anti-patterns/${declared}.md exists`,
+          field: `anti_patterns[${declared}]`,
+          message: `is declared but no anti-patterns/${declared}.md exists`,
         });
       }
     }
   }
 
-  // 5) Rule <-> anti-pattern join.
+  // 4) Rule <-> anti-pattern join. Both directions are errors now.
   const ruleIds = new Set(ALL_RULES.map((r) => r.id));
   const antiPatternRules = new Set<string>();
   for (const s of skills) {
@@ -88,7 +99,8 @@ function main(): void {
         problems.push({
           kind: "error",
           where: ap.sourcePath,
-          message: `detector_rule "${ap.detector_rule}" does not exist in src/detector/rules/`,
+          field: "detector_rule",
+          message: `"${ap.detector_rule}" does not exist in src/detector/rules/`,
         });
       }
     }
@@ -96,21 +108,33 @@ function main(): void {
   for (const rule of ALL_RULES) {
     if (!antiPatternRules.has(rule.id)) {
       problems.push({
-        kind: "warning",
+        kind: "error",
         where: `src/detector/rules/${rule.id}.ts`,
-        message: `rule "${rule.id}" has no matching anti-pattern markdown — every rule should explain itself in skills/<id>/anti-patterns/<x>.md`,
+        field: "anti-pattern join",
+        message: `rule "${rule.id}" has no anti-pattern markdown — every rule must point to skills/<id>/anti-patterns/<x>.md (set its detector_rule field)`,
       });
     }
   }
 
-  // 6) Commands referencing non-existent skills.
+  // 5) Commands referencing non-existent skills or unknown reference ids.
   for (const c of commands) {
     for (const skillId of c.uses_skills) {
-      if (!skillIds.has(skillId)) {
+      if (!seenSkillIds.has(skillId)) {
         problems.push({
           kind: "error",
           where: c.sourcePath,
-          message: `uses_skills references unknown skill "${skillId}"`,
+          field: "uses_skills",
+          message: `references unknown skill "${skillId}"`,
+        });
+      }
+    }
+    for (const refId of c.uses_references) {
+      if (!allReferenceIds.has(refId)) {
+        problems.push({
+          kind: "error",
+          where: c.sourcePath,
+          field: "uses_references",
+          message: `references unknown reference "${refId}" — known ids: ${[...allReferenceIds].sort().join(", ") || "(none)"}`,
         });
       }
     }
@@ -125,7 +149,8 @@ function main(): void {
 
   for (const p of problems) {
     const tag = p.kind === "error" ? "error" : "warn ";
-    process.stderr.write(`[${tag}] ${p.where}: ${p.message}\n`);
+    const field = p.field ? ` [${p.field}]` : "";
+    process.stderr.write(`[${tag}] ${p.where}${field}: ${p.message}\n`);
   }
   const errCount = problems.filter((p) => p.kind === "error").length;
   process.exit(errCount > 0 ? 1 : 0);

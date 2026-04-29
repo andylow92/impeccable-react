@@ -8,7 +8,8 @@ applies_to:
   - "**/*.ts"
   - "**/*.tsx"
 references: []
-anti_patterns: []
+anti_patterns:
+  - no-any
 commands:
   - audit-typescript
   - pre-ship-gate
