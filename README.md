@@ -1,59 +1,95 @@
 # impeccable-react
 
-> Stop shipping AI-generic UI. A skills bundle, command system, and detector for Claude Code, Codex, Cursor, and GitHub Copilot.
+> Stop shipping AI-generic UI. A skills bundle, command system, and detector for Claude Code and Codex (Cursor and Copilot adapters: planned).
 
 `impeccable-react` is three things in one repository:
 
 1. **Skills** — portable instruction bundles that codify what makes UI feel hand-built (typography, color, spacing, anti-patterns).
-2. **Commands** — a `/impeccable …` command catalog (critique, audit, polish, rewrite, gate) you can drop into your AI tool of choice.
+2. **Commands** — a `/impeccable …` command catalog (critique, audit, rewrite, gate) you can drop into your AI tool of choice.
 3. **Detector** — an `npx impeccable scan` CLI that finds the same anti-patterns in real source code.
 
 The premise: AI assistants regenerate the same template UI by default. This is the gate that rejects it.
 
 ---
 
-## 30-second install
-
-| Tool | Install |
-| --- | --- |
-| Claude Code | `npx impeccable render claude-code > .claude.tar && tar -xf .claude.tar` (or copy `dist/claude-code/` into your repo) |
-| Codex CLI | Copy `dist/codex/AGENTS.md` to your project root |
-| Cursor | _coming next slice_ |
-| GitHub Copilot | _coming next slice_ |
-
-Two adapters ship in this MVP slice (Claude Code, Codex). Cursor and Copilot land in the next iteration.
-
----
-
-## Try the detector
+## Install
 
 ```bash
-npx impeccable scan ./src
-npx impeccable scan ./src/Card.tsx --reporter json
-npx impeccable scan ./src --rule ui-uniform-radius --strict
-npx impeccable scan ./src --fast
+npm install impeccable-react
 ```
 
-Exit code is non-zero when any `fail` finding is present (or any `warn` with `--strict`). Wire it into CI.
+That gives you the `impeccable` CLI plus a built `dist/` tree containing the per-target bundles.
+
+| Target | Install |
+| --- | --- |
+| Claude Code | `cp -r node_modules/impeccable-react/dist/claude-code/.claude .` |
+| Codex CLI | `cp node_modules/impeccable-react/dist/codex/AGENTS.md .`<br>`cp -r node_modules/impeccable-react/dist/codex/AGENTS-commands .` |
+| Cursor | _planned (see Known limitations)_ |
+| GitHub Copilot | _planned (see Known limitations)_ |
+
+To inspect what would be installed without copying anything:
+
+```bash
+npx impeccable render claude-code   # prints every generated file with a "# ===== <path> =====" header
+npx impeccable render codex
+```
+
+If you cloned the repo and want to regenerate `dist/` from source, run `npm run build`.
 
 ---
 
-## What ships in this slice
+## Detector usage
 
-- 3 skills: `impeccable-ui`, `impeccable-react`, `impeccable-typescript` — each with a `SKILL.md` and frontmatter.
-- 3 detector rules: `ui-uniform-radius`, `ui-generic-saas-card`, `ts-no-any`.
-- 2 reporters: `human`, `json`.
+```bash
+npx impeccable scan ./src                              # scan a directory
+npx impeccable scan ./src/Card.tsx                     # scan a single file
+npx impeccable scan ./src --reporter json              # JSON output (schema: impeccable-scan-report-v1)
+npx impeccable scan ./src --rule ui-uniform-radius     # restrict to one rule (repeatable)
+npx impeccable scan ./src --strict                     # warn-level findings also fail
+npx impeccable scan ./src --fast                       # skip slow rules (none are slow yet)
+npx impeccable scan ./src --output report.json --reporter json
+npx impeccable list rules
+npx impeccable list commands
+npx impeccable list skills
+npx impeccable list targets
+npx impeccable explain ui-generic-saas-card            # prints the anti-pattern doc
+```
+
+Exit codes: `0` if no `fail` findings (and no `warn` with `--strict`). `1` if findings exceed the threshold. `2` for invalid invocation. Wire it into CI.
+
+---
+
+## What ships today
+
+- 3 skills: `impeccable-ui`, `impeccable-react`, `impeccable-typescript` — each with frontmatter and (where applicable) `references/` and `anti-patterns/` subtrees.
+- 3 detector rules: `ui-uniform-radius`, `ui-generic-saas-card` (confidence-scored), `ts-no-any`.
+- 2 reporters: `human` (default), `json`.
 - 2 target adapters: `claude-code`, `codex`.
 - 4 starter commands: `critique-ui`, `pre-ship-gate`, `rewrite-generic`, `audit-typescript`.
-- A schema verifier (`npm run verify`) that fails CI on broken skill ↔ rule joins.
-
-The full catalog (20+ commands, 13+ rules, 7 references, 6 anti-patterns, 4 adapters) is on the roadmap.
+- A schema verifier (`npm run verify`) that fails CI on:
+  - broken skill ↔ rule ↔ anti-pattern joins (a rule with no anti-pattern doc is an error)
+  - command slugs that aren't `"/word"` or `"/word subword..."` (kebab tokens, single spaces)
+  - `uses_skills` / `uses_references` ids that don't resolve
+- Adapter snapshot tests that fail when generated output drifts (`UPDATE_SNAPSHOTS=1 npm test` to refresh).
 
 ---
 
-## Author your own
+## Known limitations (MVP)
 
-- `docs/` (forthcoming) — guides for authoring skills, commands, rules.
+- **Adapters: Claude Code + Codex only.** No Cursor (`.cursor/rules/*.mdc`) or Copilot (`.github/copilot-instructions.md`) emission yet. The adapter interface in `src/targets/types.ts` is what new targets implement.
+- **Rule coverage is small (3 rules).** No coverage yet for: shadow uniformity, decorative gradients, pill-and-ghost stacks, contrast tokens, fetch-in-component, business-rule-in-jsx, effect-derived-state. They're modeled in the skill docs but not yet enforced by the detector.
+- **Reporters: human + JSON only.** No SARIF reporter (planned, would unblock GitHub code-scanning integration).
+- **Inputs: file or directory only.** No URL mode (`--url <url>` returns "not implemented"). No `.gitignore` parsing — the walker hardcodes a small skip list (`node_modules`, `dist`, `.git`, etc.).
+- **Languages: TSX, TS, JSX, JS only.** No standalone HTML or CSS parsing. CSS rules live in classNames; if your styling isn't in classNames, the rules can't see it.
+- **No `.impeccablerc.json` config.** Severity overrides and per-rule disabling go through `--rule` only. Inline ignores aren't implemented.
+- **No autofix.** Findings include a `fix.description` field, but no rule emits a code patch.
+
+The full catalog (20+ commands, 13+ rules, 7+ references, 6+ anti-patterns, 4 adapters, SARIF reporter, URL mode, configfile) is on the roadmap. Each item below the line above is a small, isolated PR away.
+
+---
+
+## Authoring
+
 - The schema for skill frontmatter lives in `src/skills/schema.ts`.
 - The schema for command frontmatter lives in `src/commands/schema.ts`.
 - The interface for detector rules lives in `src/detector/rules/types.ts`.

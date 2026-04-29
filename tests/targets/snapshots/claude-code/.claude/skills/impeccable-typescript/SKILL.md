@@ -1,20 +1,7 @@
 ---
-id: impeccable-typescript
 name: Impeccable TypeScript
-version: 1.0.0
-summary: No any, schemas at boundaries, single source of truth for domain types.
-voice: directive
-applies_to:
-  - "**/*.ts"
-  - "**/*.tsx"
-references: []
-anti_patterns:
-  - no-any
-commands:
-  - audit-typescript
-  - pre-ship-gate
+description: No any, schemas at boundaries, single source of truth for domain types.
 ---
-
 # TypeScript Skill: Enforced Discipline
 
 This is a gate, not a guide. If your code violates a rule below, it does not ship.
