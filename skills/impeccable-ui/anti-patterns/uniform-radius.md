@@ -48,8 +48,8 @@ Everything feels equally important and equally interactive.
 ```
 
 ## Detector mapping
-- Stable ID: `uniform-radius`
-- Rule-backed via `detector_rule: ui-uniform-radius`
+Coverage: detector-backed
+Rule ID: ui-uniform-radius
 
 ## Related
 - `generic-saas-card`
