@@ -24,7 +24,7 @@ Typography must establish information priority at a glance. Build every screen w
 - Keep alignment intentional. In left-anchored layouts, left-align text; do not center titles or values as decoration.
 
 ## Anti-patterns and failure cues
-- See: `anti-patterns/gray-on-gray.md` (forthcoming).
+- See: `gray-on-gray` (`anti-patterns/gray-on-gray.md`).
 - “Centered card title” in a left-anchored layout signals template styling over information design.
 - Labels and values using the same size/weight indicates collapsed hierarchy.
 - Multiple display-size headlines in one viewport indicates unresolved priority.
