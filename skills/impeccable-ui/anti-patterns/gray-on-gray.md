@@ -42,8 +42,7 @@ When labels, values, and supporting copy all sit in similar gray ranges, hierarc
 ```
 
 ## Detector mapping
-- Stable ID: `gray-on-gray`
-- Mapping: manual-only (current release)
+Coverage: manual-only (current release)
 
 ## Related
 - `typography`

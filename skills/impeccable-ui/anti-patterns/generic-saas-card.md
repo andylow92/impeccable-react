@@ -59,8 +59,8 @@ mockups instead of product-grade information architecture.
 ```
 
 ## Detector mapping
-- Stable ID: `generic-saas-card`
-- Rule-backed via `detector_rule: ui-generic-saas-card`
+Coverage: detector-backed
+Rule ID: ui-generic-saas-card
 
 ## Related
 - `uniform-radius`
