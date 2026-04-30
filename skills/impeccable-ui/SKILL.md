@@ -26,6 +26,11 @@ commands:
   - pre-ship-gate
   - teach
   - polish
+  - animate
+  - layout
+  - typeset
+  - clarify
+  - adapt
 ---
 
 # Impeccable UI
