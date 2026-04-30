@@ -40,6 +40,7 @@ test("loads the full command catalog", () => {
     "audit-typescript",
     "bolder",
     "clarify",
+    "colorize",
     "craft",
     "critique-ui",
     "delight",
