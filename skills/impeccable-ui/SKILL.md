@@ -24,6 +24,8 @@ commands:
   - critique-ui
   - rewrite-generic
   - pre-ship-gate
+  - teach
+  - polish
 ---
 
 # Impeccable UI
