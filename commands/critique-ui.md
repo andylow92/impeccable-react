@@ -15,7 +15,6 @@ uses_skills:
 uses_references:
   - typography
   - color-contrast
-  - anti-pattern-library
 severity_threshold: warn
 ---
 

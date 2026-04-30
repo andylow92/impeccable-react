@@ -12,8 +12,7 @@ outputs:
     schema: rewrite-patch-v2
 uses_skills:
   - impeccable-ui
-uses_references:
-  - anti-pattern-library
+uses_references: []
 severity_threshold: fail
 ---
 
@@ -76,13 +75,14 @@ Contract requirements:
 - `warn`: Rewrite is partial but still leaves non-blocking generic traits.
 - `pass`: Rewrite removes gate-failing generic patterns.
 
-## Invocation
+## Example invocation + example output
+Invocation:
 
 ```text
 /impeccable rewrite-generic target=src/components/Card.tsx
 ```
 
-## Compliant output example
+Example output:
 
 ```json
 {

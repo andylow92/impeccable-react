@@ -12,8 +12,7 @@ outputs:
     schema: audit-report-v1
 uses_skills:
   - impeccable-typescript
-uses_references:
-  - domain-types
+uses_references: []
 severity_threshold: fail
 ---
 

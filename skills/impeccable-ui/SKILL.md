@@ -31,6 +31,19 @@ commands:
   - typeset
   - clarify
   - adapt
+  - craft
+  - document
+  - shape
+  - extract
+  - harden
+  - onboard
+  - bolder
+  - quieter
+  - distill
+  - delight
+  - overdrive
+  - optimize
+  - live
 ---
 
 # Impeccable UI
