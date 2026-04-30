@@ -31,10 +31,35 @@ test("anti-pattern detector_rule joins to a real rule id", async () => {
   }
 });
 
-test("loads four starter commands", () => {
+test("loads the full command catalog", () => {
   const commands = loadCommands(resolve("commands"));
   const ids = commands.map((c) => c.id).sort();
-  assert.deepEqual(ids, ["audit-typescript", "critique-ui", "pre-ship-gate", "rewrite-generic"]);
+  assert.deepEqual(ids, [
+    "adapt",
+    "animate",
+    "audit-typescript",
+    "bolder",
+    "clarify",
+    "craft",
+    "critique-ui",
+    "delight",
+    "distill",
+    "document",
+    "extract",
+    "harden",
+    "layout",
+    "live",
+    "onboard",
+    "optimize",
+    "overdrive",
+    "polish",
+    "pre-ship-gate",
+    "quieter",
+    "rewrite-generic",
+    "shape",
+    "teach",
+    "typeset",
+  ]);
 });
 
 const REFERENCE_SECTION_ORDER = [

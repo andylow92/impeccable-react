@@ -2,7 +2,6 @@
 id: gray-on-gray
 parent: impeccable-ui
 severity: warn
-detector_rule: manual-only-current-release
 summary: Low-contrast gray text on gray surfaces obscures hierarchy and readability.
 ---
 

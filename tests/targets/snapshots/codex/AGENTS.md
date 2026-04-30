@@ -331,14 +331,227 @@ This is the redesign protocol. Skipping steps regenerates the generic output.
 #### References — impeccable-ui
 
 - **color-contrast** — Color encodes state. Contrast is not optional.
-- **typography** — Three-tier hierarchy or it's filler.
+- **interaction-design** — Every interactive element must show focus, state, and outcome unambiguously.
+- **motion-design** — Motion encodes causality and state change. It is never decorative.
+- **responsive-design** — Design mobile-first with fluid type and content-driven breakpoints.
+- **spatial-design** — Use a tokenized spacing scale so density encodes hierarchy.
+- **typography** — Enforce hierarchy with measurable type tiers and spacing rhythm.
+- **ux-writing** — Microcopy must name the action, the state, and the next step.
 
 #### Anti-patterns — impeccable-ui
 
 - **generic-saas-card** [fail] (detector: `ui-generic-saas-card`) — rounded-2xl + soft shadow + centered heading + single CTA. The AI default.
+- **gray-on-gray** [warn] — Low-contrast gray text on gray surfaces obscures hierarchy and readability.
 - **uniform-radius** [warn] (detector: `ui-uniform-radius`) — Every rounded element shares the same border-radius. Hierarchy collapses.
 
 ## Commands
+
+### `/impeccable adapt` — Audit and align responsive behavior against the responsive-design reference
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable adapt
+
+## Purpose
+Verify the target builds mobile-first, breakpoints serve content rules,
+type stays fluid above the 14px floor, and primary content never requires
+horizontal scrolling.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Inventory every media query and container query in the target.
+2. Flag desktop-first cascades that use `max-width` queries to "fix" mobile.
+3. For each breakpoint, confirm a content rule exists (in `DESIGN.md` or
+   inline comment). Flag breakpoints that map to device classes only.
+4. Flag fixed body/value font sizes; require fluid sizing (`clamp()` style)
+   bounded by the 14px floor.
+5. Flag tap targets that shrink below 44×44 in compact density.
+6. Flag primary content that requires horizontal scrolling outside of
+   announced lists/tables.
+7. Flag images and embeds that do not declare `aspect-ratio` or width/height.
+8. Flag viewport-only breakpoints used on components that ship into multiple
+   layout contexts (recommend container queries instead).
+9. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "adapt-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "ruleId": "adapt-desktop-first-cascade",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/styles/card.css",
+        "line": 1
+      },
+      "message": "Stylesheet uses max-width media queries to shrink for mobile.",
+      "fix": "Invert the cascade: write base styles for the smallest viewport and add density via min-width queries."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"adapt-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: Tap targets below 44×44 on touch density **or** primary content
+  requires horizontal scroll on the supported viewport range **or** body/value
+  text falls below the 14px floor at any breakpoint.
+- `warn`: Desktop-first cascades, undocumented breakpoints, fixed type sizes,
+  missing aspect-ratio declarations, or viewport queries on reusable
+  components.
+- `pass`: `changes` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable adapt target=src/components/Card.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "adapt-report-v1",
+  "verdict": "fail",
+  "changes": [
+    {
+      "ruleId": "adapt-sub-floor-mobile",
+      "severity": "fail",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/styles/card.css",
+        "line": 9
+      },
+      "message": "@media (max-width: 768px) sets body text to 12px, below the 14px floor.",
+      "fix": "Replace with clamp(0.875rem, 1.5vw, 1rem) at the base level and remove the desktop-first override."
+    }
+  ]
+}
+```
+
+### `/impeccable animate` — Audit and align motion against the motion-design reference
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable animate
+
+## Purpose
+Verify every transition and animation in the target encodes a state change,
+sits inside the duration band, uses role-correct easing, and respects
+reduced-motion.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Locate every `transition`, `animation`, `keyframes`, Framer Motion prop,
+   and JS-driven motion call in the target.
+2. For each, name the state change it explains. If none, mark for removal.
+3. Check duration: 120–240ms for UI feedback, ≤ 400ms for page-scale.
+4. Check easing role: out (enter), in (exit), in-out (reposition).
+5. Confirm at most two animated properties per causal event.
+6. Confirm staggers are deterministic and ≤ 30ms step on one axis.
+7. Confirm a `prefers-reduced-motion: reduce` branch disables non-essential
+   motion and limits the rest to ≤ 100ms opacity crossfades.
+8. Confirm hover and `:focus-visible` produce identical state feedback.
+9. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "animate-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "ruleId": "animate-overlong-duration",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 27
+      },
+      "message": "Transition duration 600ms exceeds the 240ms UI feedback band.",
+      "fix": "Reduce to duration-200 (200ms) and switch easing to ease-out."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"animate-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: A `prefers-reduced-motion` branch is missing entirely **or** hover
+  state feedback is gated behind cursor-only events with no focus-visible
+  parity.
+- `warn`: Duration, easing, stagger, or concurrent-property issues remain.
+- `pass`: `changes` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable animate target=src/components/Card.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "animate-report-v1",
+  "verdict": "fail",
+  "changes": [
+    {
+      "ruleId": "animate-no-reduced-motion",
+      "severity": "fail",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 1
+      },
+      "message": "No prefers-reduced-motion branch; non-essential motion will run for users who disabled it.",
+      "fix": "Wrap non-essential transitions in @media (prefers-reduced-motion: reduce) and limit to <=100ms opacity crossfades."
+    },
+    {
+      "ruleId": "animate-decorative-spring",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 27
+      },
+      "message": "Elastic easing on hover scale + rotate has no causal source.",
+      "fix": "Replace with background-color + box-shadow transitions at 160ms ease-out."
+    }
+  ]
+}
+```
 
 ### `/impeccable audit-typescript` — Audit a TypeScript file or directory against the impeccable-typescript skill
 
@@ -348,31 +561,370 @@ This is the redesign protocol. Skipping steps regenerates the generic output.
 
 # /impeccable audit-typescript
 
-You are auditing a TypeScript file against the hard rules in
-`impeccable-typescript`.
+## Purpose
+Audit TypeScript targets against hard rules and produce deterministic, parseable findings.
+
+## Inputs
+- `target` (required, `path`): `.ts`/`.tsx` file or directory.
 
 ## Procedure
-1. Search for any of: `: any`, `as any`, `<any>`, `any[]`. Each occurrence is
-   a `fail`.
-2. Search for `await fetch(...)` or `JSON.parse(...)` not followed by a
-   `.parse(` call within the same expression. Each occurrence is a `warn`.
-3. Search for exported functions whose return type is inferred. Each is a
-   `warn`.
-4. Search for type literals that re-declare a domain type already exported
-   from `src/domain/*`. Each is a `fail`.
+1. Detect forbidden `any` usage (`: any`, `as any`, `<any>`, `any[]`); record each as `fail`.
+2. Detect `await fetch(...)` or `JSON.parse(...)` results not validated through `.parse(...)` in the same expression; record each as `warn`.
+3. Detect exported functions with inferred return types; record each as `warn`.
+4. Detect local type literals that duplicate a domain type from `src/domain/*`; record each as `fail`.
+5. Compute verdict from findings.
+6. Emit JSON that exactly matches the output schema.
 
-## Output (JSON, conforms to `audit-report-v1`)
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
 
 ```json
 {
-  "verdict": "pass | warn | fail",
+  "schemaVersion": "audit-report-v1",
+  "verdict": "pass",
   "findings": [
-    { "rule": "ts-no-any", "severity": "fail", "where": "lib/api.ts:14", "snippet": "function load(data: any) {", "fix": "..." }
+    {
+      "ruleId": "ts-no-any",
+      "severity": "fail",
+      "location": {
+        "path": "src/lib/api.ts",
+        "line": 14
+      },
+      "snippet": "function load(data: any) {",
+      "message": "Forbidden any usage.",
+      "fix": "Replace any with a concrete type or unknown + parser."
+    }
   ]
 }
 ```
 
-Do not propose patches in this command. Use a follow-up command for that.
+Contract requirements:
+- `schemaVersion`: enum, must be `"audit-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `findings`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- Every finding must include all keys shown above.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: One or more `fail` findings exist.
+- `warn`: No `fail` findings and at least one `warn` finding exists.
+- `pass`: `findings` is empty.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable audit-typescript target=src/lib
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "audit-report-v1",
+  "verdict": "fail",
+  "findings": [
+    {
+      "ruleId": "ts-no-any",
+      "severity": "fail",
+      "location": {
+        "path": "src/lib/api.ts",
+        "line": 14
+      },
+      "snippet": "function load(data: any) {",
+      "message": "Forbidden any usage.",
+      "fix": "Replace any with validated input types."
+    }
+  ]
+}
+```
+
+### `/impeccable bolder` — Increase visual emphasis on a too-quiet target
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable bolder
+
+## Purpose
+Resolve under-emphasized UIs where hierarchy collapses into "all medium".
+Promote display tier, primary action, and key value text so the screen
+ranks itself in the first three seconds.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Identify the screen's primary value or message. If you cannot, return
+   `verdict: "fail"` — bolder is not a fix for ambiguous priority.
+2. Promote the primary value to display tier per `typography`.
+3. Promote the primary action: increase contrast against its surface to
+   the maximum allowed by `color-contrast`; ensure no other element on
+   screen exceeds it.
+4. Demote or mute every element that competes with the primary; reduce
+   their weight or color saturation.
+5. Increase white space around the primary cluster per `spatial-design`
+   (≥ one step larger than internal gap).
+6. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "bolder-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "ruleId": "bolder-promote-primary",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Billing/Card.tsx", "line": 18 },
+      "message": "Primary total renders at value tier; hierarchy reads flat.",
+      "fix": "Promote to display tier (28px bold) and demote the surrounding labels."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"bolder-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: The screen's primary value cannot be identified.
+- `warn`: Primary exists but is rendered at value tier, or competing
+  elements have equal contrast.
+- `pass`: `changes` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable bolder target=src/screens/Billing/Card.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "bolder-report-v1",
+  "verdict": "warn",
+  "changes": [
+    {
+      "ruleId": "bolder-promote-primary",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Billing/Card.tsx", "line": 18 },
+      "message": "Total renders at value tier; should be the display tier.",
+      "fix": "Promote to display tier and demote surrounding labels to label tier."
+    }
+  ]
+}
+```
+
+### `/impeccable clarify` — Audit and rewrite microcopy against the ux-writing reference
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable clarify
+
+## Purpose
+Verify every button, error, empty state, and confirmation names the action,
+the state, or the next step. Strip filler. Keep nouns consistent.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Inventory every user-visible string in the target: button labels, form
+   labels, error messages, empty states, confirmations, tooltips.
+2. Flag buttons whose label is generic (`Submit`, `OK`, `Continue`, `Done`)
+   without the action verb + object pair.
+3. Flag errors that lack a cause, a scope, or a corrective action; flag
+   apologetic phrasing (`Oops`, `Whoops`).
+4. Flag empty states that say `No data` / `Nothing here` without naming the
+   entity, the reason, and the primary action.
+5. Flag filler words (`just`, `simply`, `easily`, `please`).
+6. Flag noun drift: same concept referred to by multiple terms across the
+   flow (e.g. `project` vs `item` vs `entry`).
+7. Flag numbers, dates, prices missing timezone, currency, or unit.
+8. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "clarify-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "ruleId": "clarify-generic-button",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/screens/Billing/InvoiceForm.tsx",
+        "line": 42
+      },
+      "message": "Button label \"Submit\" does not name the outcome.",
+      "fix": "Replace with \"Send invoice\"."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"clarify-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: An error message gives no cause and no corrective action **or** a
+  destructive confirmation does not name what will be deleted.
+- `warn`: Generic button labels, filler words, vague empty states, noun
+  drift, or numbers without units.
+- `pass`: `changes` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable clarify target=src/screens/Billing
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "clarify-report-v1",
+  "verdict": "fail",
+  "changes": [
+    {
+      "ruleId": "clarify-empty-error",
+      "severity": "fail",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/screens/Billing/InvoiceForm.tsx",
+        "line": 88
+      },
+      "message": "\"Oops! Something went wrong. Please try again.\" gives no cause and no action.",
+      "fix": "Replace with \"We couldn't reach the billing service. Retry, or contact support if the issue persists.\" plus a Retry control."
+    },
+    {
+      "ruleId": "clarify-noun-drift",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/screens/Billing/InvoiceList.tsx",
+        "line": 6
+      },
+      "message": "Empty state uses \"items\" while the rest of the flow says \"invoices\".",
+      "fix": "Replace \"items\" with \"invoices\" everywhere in this flow."
+    }
+  ]
+}
+```
+
+### `/impeccable craft` — Run the full critique-polish-fix workflow against a target
+
+**Inputs:** `target` (path, required), `focus` (string)
+
+**Uses skills:** `impeccable-ui`, `impeccable-react`
+
+# /impeccable craft
+
+## Purpose
+Run the full Impeccable workflow end-to-end on a target: critique generic
+patterns, then polish residual drift, then dispatch the relevant per-reference
+fixers (`animate`, `layout`, `typeset`, `clarify`, `adapt`). Returns a
+single combined report.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+- `focus` (optional, `string`): comma-separated subset of
+  `typography,color,spacing,motion,interaction,responsive,writing`. When
+  omitted, all dimensions run.
+
+## Procedure
+1. Run the `critique-ui` procedure; collect findings.
+2. Run the `polish` procedure; collect changes and residue.
+3. For each dimension in `focus` (or all dimensions when omitted), dispatch
+   the corresponding fixer (`typeset`, `colorize` via `color-contrast`,
+   `layout`, `animate`, `interaction-design` checks via `polish`, `adapt`,
+   `clarify`) and merge results.
+4. Deduplicate findings that fire from multiple fixers on the same
+   `path:line:ruleId` triple, preferring the highest severity.
+5. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "craft-report-v1",
+  "verdict": "pass",
+  "stages": {
+    "critique": [],
+    "polish": [],
+    "fixers": []
+  }
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"craft-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `stages`: object; all three keys required (`critique`, `polish`, `fixers`),
+  each an array (use `[]` when none).
+- Every entry inside any stage uses the standard finding shape
+  (`ruleId`, `severity`, `antiPatternId`, `location`, `message`, `fix`).
+
+## Severity rubric
+- `fail`: any stage entry has `severity: "fail"`.
+- `warn`: no `fail` entries; at least one `warn` entry exists.
+- `pass`: every stage array is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable craft target=src/screens/Billing focus=typography,motion
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "craft-report-v1",
+  "verdict": "warn",
+  "stages": {
+    "critique": [],
+    "polish": [],
+    "fixers": [
+      {
+        "ruleId": "animate-overlong-duration",
+        "severity": "warn",
+        "antiPatternId": null,
+        "location": { "path": "src/screens/Billing/Card.tsx", "line": 27 },
+        "message": "Transition duration 600ms exceeds the 240ms UI feedback band.",
+        "fix": "Reduce to duration-200 (200ms)."
+      }
+    ]
+  }
+}
+```
 
 ### `/impeccable critique` — Critique a UI for generic patterns
 
@@ -382,36 +934,1208 @@ Do not propose patches in this command. Use a follow-up command for that.
 
 # /impeccable critique
 
-You are reviewing a UI against the Impeccable UI gate.
+## Purpose
+Review a UI target against the Impeccable UI gate and identify generic-pattern failures with machine-parseable findings.
+
+## Inputs
+- `target` (required, `path`): file or directory to review.
 
 ## Procedure
-1. Read the target file(s).
+1. Read every file under `target` that contributes to the rendered UI.
 2. Run the preflight checklist from `impeccable-ui`.
-3. For each fail condition, cite the anti-pattern by id.
-4. Output a structured report.
+3. Cross-check against referenced anti-patterns; when matched, include the anti-pattern id.
+4. Assign severity per the rubric below and compute the overall verdict.
+5. Emit JSON that exactly matches the output schema.
 
-## Output (JSON, conforms to `critique-report-v1`)
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
 
 ```json
 {
-  "verdict": "pass | warn | fail",
+  "schemaVersion": "critique-report-v1",
+  "verdict": "pass",
   "findings": [
     {
-      "rule": "ui-uniform-radius",
+      "ruleId": "ui-uniform-radius",
       "severity": "warn",
-      "antiPattern": "uniform-radius",
-      "where": "Card.tsx:12",
+      "antiPatternId": "uniform-radius",
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 12
+      },
       "message": "Every container uses rounded-2xl.",
-      "fix": "Use rounded-sharp on inner data tiles, keep rounded-panel only on outer wrapper."
+      "fix": "Use rounded-sharp on inner data tiles; keep rounded-panel only on the outer wrapper."
     }
   ]
 }
 ```
 
-## Calibration
-- Be ruthless about the "Generic SaaS card" anti-pattern. If you see soft radius +
-  soft shadow + centered heading + single CTA, the verdict is `fail`.
-- Do not propose patches in this command. Use `/impeccable rewrite-generic` for that.
+Contract requirements:
+- `schemaVersion`: enum, must be `"critique-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `findings`: required array (use `[]` when none).
+- Each finding object must include all keys shown above.
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null` when no anti-pattern matches.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: Clear gate violation that materially preserves or introduces a known generic anti-pattern.
+- `warn`: Meaningful weakness that should be corrected but is not a hard stop.
+- `pass`: No findings.
+
+Calibration rule: If the UI exhibits soft radius + soft shadow + centered heading + single CTA in a generic SaaS card pattern, classify at least one finding as `fail` and set `verdict` to `fail`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable critique target=src/components/Card.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "critique-report-v1",
+  "verdict": "fail",
+  "findings": [
+    {
+      "ruleId": "ui-generic-saas-card",
+      "severity": "fail",
+      "antiPatternId": "generic-saas-card",
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 12
+      },
+      "message": "Soft radius + soft shadow + centered heading + single CTA produces a generic SaaS card.",
+      "fix": "Apply strip → rank → tier and reintroduce only one accent plus one elevated surface."
+    }
+  ]
+}
+```
+
+### `/impeccable delight` — Introduce purposeful moments of delight on a target
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable delight
+
+## Purpose
+Add a small number of intentional moments — never decoration. Delight only
+attaches to events that already matter (success, completion, milestone),
+respects reduced-motion, and survives keyboard-only use.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Identify candidate moments: successful primary action, milestone
+   reached, empty-to-first-item transition, error recovery.
+2. Reject candidates that do not correspond to a state change the user
+   produced. Decoration is not delight.
+3. Propose at most **one** moment per surface and at most **three**
+   per screen.
+4. Each proposed moment must:
+   - Attach to a real state change.
+   - Use motion within 120–240ms ease-out per `motion-design`.
+   - Provide a `prefers-reduced-motion` fallback (text-only confirmation).
+   - Provide a keyboard-equivalent confirmation per `interaction-design`.
+   - Use specific microcopy per `ux-writing` ("Invoice sent to maya@acme.com",
+     not "Awesome!").
+5. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "delight-report-v1",
+  "verdict": "pass",
+  "moments": [
+    {
+      "trigger": "invoice-send-success",
+      "ruleId": "delight-confirm-success",
+      "severity": "warn",
+      "location": { "path": "src/screens/Billing/InvoiceForm.tsx", "line": 90 },
+      "fix": "On success, animate the row entry at 200ms ease-out and toast \"Invoice #1042 sent to maya@acme.com\". Reduced-motion: toast only.",
+      "antiPatternId": null
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"delight-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `moments`: required array (use `[]` when none); at most 3 entries per
+  invocation.
+- `trigger`: required non-empty string naming a real state change.
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+- `fix`: must describe both the default-motion behavior and the
+  reduced-motion fallback.
+
+## Severity rubric
+- `fail`: A proposed moment has no causal state change, no reduced-motion
+  fallback, or a decorative emoji-only confirmation.
+- `warn`: All proposed moments are valid but not yet wired in.
+- `pass`: `moments` is `[]` (target already has appropriate moments or
+  needs none).
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable delight target=src/screens/Billing
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "delight-report-v1",
+  "verdict": "warn",
+  "moments": [
+    {
+      "trigger": "first-invoice-sent",
+      "ruleId": "delight-first-activation",
+      "severity": "warn",
+      "location": { "path": "src/screens/Billing/InvoiceForm.tsx", "line": 90 },
+      "fix": "On the user's first successful send, animate a checkmark at 200ms ease-out and toast \"First invoice sent.\" Reduced-motion: toast only, no checkmark.",
+      "antiPatternId": null
+    }
+  ]
+}
+```
+
+### `/impeccable distill` — Strip a target down to elements that change a decision
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable distill
+
+## Purpose
+Remove every element that does not change a decision the user makes.
+Decoration, filler charts, sparklines, and chrome get cut. What remains
+must justify itself.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Inventory every element on screen. For each, name the user decision
+   it supports. If you cannot, mark for removal.
+2. Flag filler dashboards: charts, sparklines, badges, or pills whose
+   value cannot be tied to a decision.
+3. Flag decorative imagery, icons, or illustrations that do not
+   communicate state, role, or wayfinding.
+4. Flag duplicate information (same metric expressed twice).
+5. Flag explanatory copy that restates the visible label per
+   `ux-writing`.
+6. Reclaim the freed space per `spatial-design` (increase rhythm around
+   what remains).
+7. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "distill-report-v1",
+  "verdict": "pass",
+  "removals": [
+    {
+      "ruleId": "distill-filler-sparkline",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Dashboard.tsx", "line": 34 },
+      "message": "30-day sparkline cannot be tied to any user decision on this screen.",
+      "fix": "Remove the sparkline; reclaim the space as breathing room around the primary metric."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"distill-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `removals`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+- `fix`: must describe a removal — never an addition or restyle.
+
+## Severity rubric
+- `fail`: More than half of the screen's surface area cannot be tied to a
+  decision.
+- `warn`: At least one element cannot be tied to a decision.
+- `pass`: `removals` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable distill target=src/screens/Dashboard.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "distill-report-v1",
+  "verdict": "warn",
+  "removals": [
+    {
+      "ruleId": "distill-restated-label",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Dashboard.tsx", "line": 12 },
+      "message": "Tooltip on \"Save\" repeats the visible label (\"Saves the project\").",
+      "fix": "Remove the tooltip; the label is already clear."
+    }
+  ]
+}
+```
+
+### `/impeccable document` — Generate DESIGN.md from the current codebase
+
+**Inputs:** `target` (path)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable document
+
+## Purpose
+Generate `DESIGN.md` from the existing codebase without inferring product
+context. Use this when `PRODUCT.md` already exists or is intentionally out of
+scope; otherwise prefer `/impeccable teach`.
+
+## Inputs
+- `target` (optional, `path`): repo root or app directory. Defaults to CWD.
+
+## Procedure
+1. Walk `target`. Read Tailwind config, CSS custom properties, and
+   token modules to extract spacing, color, radius, shadow, type scale, and
+   motion durations.
+2. Identify the dominant accent token and verify it encodes a state per the
+   `color-contrast` reference. Record the semantic mapping.
+3. Identify the type tier set per the `typography` reference. Record sizes,
+   weights, and color tokens for label / value / display.
+4. Identify the spacing scale per the `spatial-design` reference. Record
+   the canonical step set.
+5. Draft `DESIGN.md` as one `actions[]` write entry. Do not draft
+   `PRODUCT.md`.
+6. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "document-report-v1",
+  "verdict": "pass",
+  "summary": {
+    "primaryAccent": "cobalt",
+    "spacingScale": [4, 8, 12, 16, 24, 32, 48, 64],
+    "typeTiers": ["label", "value", "display"]
+  },
+  "actions": [
+    {
+      "kind": "write",
+      "path": "DESIGN.md",
+      "contents": "# Design system\n..."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"document-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `summary`: object; all three keys required (use `null` if a value cannot be
+  inferred — never omit).
+- `actions`: required array; exactly one entry whose `path` is `"DESIGN.md"`.
+
+## Severity rubric
+- `fail`: A primary signal (accent, tiers, or spacing) cannot be resolved at
+  all.
+- `warn`: All signals resolve but at least one is weak.
+- `pass`: All three summary keys resolved with confidence.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable document target=.
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "document-report-v1",
+  "verdict": "pass",
+  "summary": {
+    "primaryAccent": "cobalt",
+    "spacingScale": [4, 8, 12, 16, 24, 32],
+    "typeTiers": ["label", "value", "display"]
+  },
+  "actions": [
+    {
+      "kind": "write",
+      "path": "DESIGN.md",
+      "contents": "# Design system\n\n## Type tiers\n- label: 12px, uppercase, muted\n- value: 14px, semibold, ink\n- display: 28px, bold, ink (one per viewport)\n\n## Accent\n- cobalt: action; reserved for the primary CTA.\n\n## Spacing scale\n4 / 8 / 12 / 16 / 24 / 32\n"
+    }
+  ]
+}
+```
+
+### `/impeccable extract` — Extract reusable components and tokens from a screen
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`, `impeccable-react`
+
+# /impeccable extract
+
+## Purpose
+Identify components and tokens inside a target that should be lifted into
+shared modules, and emit a plan with concrete extraction targets — not a
+patch. Code edits are out of scope; this command produces guidance.
+
+## Inputs
+- `target` (required, `path`): screen or component file.
+
+## Procedure
+1. Walk the target's JSX. Identify subtrees that:
+   - Repeat (≥ 2 occurrences with shape parity).
+   - Embody a named design pattern (header, metric tile, status pill).
+   - Cross the layer boundary (per `impeccable-react`): a presentational
+     subtree currently mixed with screen orchestration.
+2. For each candidate, propose a name (PascalCase), a destination path under
+   `src/ui/`, and a prop signature.
+3. Walk inline values (color, spacing, radius, shadow, font). Identify
+   literals that recur ≥ 3 times and propose a token name + destination.
+4. Flag duplicate domain types declared inline in the UI; recommend a move
+   to `src/domain/`.
+5. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "extract-report-v1",
+  "verdict": "pass",
+  "components": [
+    {
+      "name": "MetricTile",
+      "path": "src/ui/MetricTile.tsx",
+      "propsSignature": "{ label: string; value: string; trend?: 'up' | 'down' }",
+      "occurrences": [
+        { "path": "src/screens/Billing/Card.tsx", "line": 22 },
+        { "path": "src/screens/Billing/Card.tsx", "line": 38 }
+      ],
+      "rationale": "Pattern repeats with parity; lifts presentational subtree out of screen."
+    }
+  ],
+  "tokens": [
+    {
+      "name": "spacing.gutter",
+      "value": "16px",
+      "occurrences": [
+        { "path": "src/screens/Billing/Card.tsx", "line": 10 }
+      ],
+      "rationale": "Repeats 5x as the layout gutter; codify in DESIGN.md."
+    }
+  ],
+  "domainMoves": []
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"extract-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `components`, `tokens`, `domainMoves`: required arrays (use `[]` when
+  none).
+- Each component entry must include all keys shown.
+- `occurrences[].line`: integer (1-based).
+
+## Severity rubric
+- `fail`: A domain type is declared inline in the UI layer (boundary
+  violation).
+- `warn`: At least one extraction candidate exists.
+- `pass`: All three arrays are `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable extract target=src/screens/Billing/Card.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "extract-report-v1",
+  "verdict": "warn",
+  "components": [
+    {
+      "name": "MetricTile",
+      "path": "src/ui/MetricTile.tsx",
+      "propsSignature": "{ label: string; value: string }",
+      "occurrences": [
+        { "path": "src/screens/Billing/Card.tsx", "line": 22 },
+        { "path": "src/screens/Billing/Card.tsx", "line": 38 }
+      ],
+      "rationale": "Repeats 2x with prop parity."
+    }
+  ],
+  "tokens": [],
+  "domainMoves": []
+}
+```
+
+### `/impeccable harden` — Cover error, empty, overflow, and i18n cases for a target
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable harden
+
+## Purpose
+Resolve the unhappy paths: error states, empty states, text overflow,
+long content, slow networks, and locale variance. Harden never adds
+features — it ensures the target survives the inputs it will actually see.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Inventory every async action in the target and confirm pending /
+   success / failure UI per `interaction-design`. Flag missing states.
+2. Apply the loading-time bands (300ms / 1s / 10s) per `interaction-design`.
+3. Inventory every text region and confirm overflow handling
+   (truncation, wrap, or scroll) for content 2× the typical length.
+4. Inventory every error message and confirm it satisfies `ux-writing`
+   (cause + scope + corrective action). Flag generic apologies.
+5. Inventory every empty state and confirm it names the entity, the
+   reason, and the primary action.
+6. Inventory every numeric/date/currency value and confirm unit,
+   timezone, and currency are present.
+7. Confirm responsive content reflow at the smallest supported viewport
+   per `responsive-design`. Flag horizontal scroll on primary content.
+8. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "harden-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "category": "error-state",
+      "ruleId": "harden-empty-error",
+      "severity": "fail",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Billing/InvoiceForm.tsx", "line": 88 },
+      "message": "Submit failure shows \"Something went wrong\" with no cause and no retry.",
+      "fix": "Replace with a cause + action message and a Retry control."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"harden-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `category`: enum, one of `"async-state" | "loading-band" | "overflow" |
+  "error-state" | "empty-state" | "i18n" | "responsive"`.
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: Async action missing failure UI **or** error message gives no
+  cause and no corrective action **or** primary content scrolls
+  horizontally on the smallest supported viewport.
+- `warn`: Overflow not handled, empty state vague, units missing.
+- `pass`: `changes` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable harden target=src/screens/Billing
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "harden-report-v1",
+  "verdict": "fail",
+  "changes": [
+    {
+      "category": "async-state",
+      "ruleId": "harden-missing-failure-ui",
+      "severity": "fail",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Billing/InvoiceForm.tsx", "line": 88 },
+      "message": "Submit handler has no failure branch in the UI.",
+      "fix": "Render an inline error with a Retry control on submit failure."
+    }
+  ]
+}
+```
+
+### `/impeccable layout` — Audit and align spacing against the spatial-design reference
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable layout
+
+## Purpose
+Verify spacing values come from the documented scale, proximity carries
+grouping, and section separation exceeds intra-section gaps.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Inventory every spacing value in the target (`p-*`, `m-*`, `gap-*`,
+   inline styles, magic px). Read `DESIGN.md` if present to anchor the
+   scale; otherwise treat the dominant repeating values as the scale.
+2. Flag every spacing value that is not on the scale.
+3. For each grouping container, confirm outer padding ≥ inner row gap +
+   one step. Otherwise flag a flat-stack issue.
+4. For each pair of sibling sections, confirm inter-section gap exceeds
+   each side's intra-section gap. Otherwise flag a separation issue.
+5. Verify hit targets ≥ 44×44 on touch surfaces and ≥ 24×24 on pointer
+   surfaces, achieved via padding rather than fixed dimensions.
+6. Flag grouping that depends solely on shadow/border when proximity could
+   express it.
+7. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "layout-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "ruleId": "layout-untokenized-spacing",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 14
+      },
+      "message": "p-[13px] is not on the spacing scale.",
+      "fix": "Replace with p-3 (12px)."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"layout-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: Touch hit targets fall below 44×44 **or** primary content requires
+  horizontal scrolling on the supported viewport range.
+- `warn`: Untokenized values, flat-stack containers, weak inter-section
+  separation, or grouping carried by border/shadow alone.
+- `pass`: `changes` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable layout target=src/components/Card.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "layout-report-v1",
+  "verdict": "warn",
+  "changes": [
+    {
+      "ruleId": "layout-flat-stack",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 8
+      },
+      "message": "Outer padding (12px) equals inner row gap (12px); section reads as a flat stack.",
+      "fix": "Increase outer padding to p-6 (24px) so the container frames its rows."
+    }
+  ]
+}
+```
+
+### `/impeccable live` — Iterate on a rendered URL using the full Impeccable rule set
+
+**Inputs:** `url` (url, required), `focus` (string)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable live
+
+## Purpose
+Run the Impeccable rule set against a rendered URL — a deployed preview, a
+Storybook entry, or a localhost route — instead of source files. Use this
+when source mapping is ambiguous or when verifying the shipped output.
+
+## Inputs
+- `url` (required, `url`): rendered preview address.
+- `focus` (optional, `string`): comma-separated subset of
+  `typography,color,spacing,motion,interaction,responsive,writing`.
+
+## Procedure
+1. Fetch the target URL and capture: rendered DOM, computed styles for
+   every interactive element, accent and contrast pairs, type tier sizes
+   and weights, breakpoint behavior at the smallest supported viewport.
+2. For each in-scope dimension, run the corresponding fixer rule set
+   (`typeset`, `color-contrast`, `layout`, `animate`, `interaction-design`,
+   `adapt`, `clarify`).
+3. Resolve each finding to a DOM selector. Resolve `path` only when
+   source-map resolution is reliable; otherwise emit `path: null` and the
+   selector in `selector`.
+4. Emit JSON that exactly matches the output schema. The output is a
+   report — `live` does not produce code patches.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "live-report-v1",
+  "verdict": "pass",
+  "url": "https://preview.example.com/billing",
+  "findings": [
+    {
+      "ruleId": "live-low-contrast-body",
+      "severity": "fail",
+      "antiPatternId": null,
+      "selector": "main .invoice-row .amount",
+      "location": { "path": null, "line": null },
+      "message": "Body text contrast 2.8:1 fails the 4.5:1 minimum.",
+      "fix": "Replace text-gray-400 with text-gray-700 (~7.5:1)."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"live-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `url`: required non-empty string echoing the input.
+- `findings`: required array (use `[]` when none).
+- `selector`: required non-empty CSS selector or XPath string.
+- `location.path`: string path or `null`.
+- `location.line`: integer (1-based) or `null`.
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+
+## Severity rubric
+- `fail`: Any rule that fails its source-mode counterpart fails here too
+  (e.g. body contrast < 4.5:1, missing focus-visible, sub-44 touch target,
+  body text below the 14px floor at any breakpoint).
+- `warn`: Any rule that warns in its source-mode counterpart warns here.
+- `pass`: `findings` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable live url=https://preview.example.com/billing focus=color,interaction
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "live-report-v1",
+  "verdict": "fail",
+  "url": "https://preview.example.com/billing",
+  "findings": [
+    {
+      "ruleId": "live-missing-focus-visible",
+      "severity": "fail",
+      "antiPatternId": null,
+      "selector": "main .invoice-row a.action",
+      "location": { "path": null, "line": null },
+      "message": "Action link has no visible focus-visible style.",
+      "fix": "Add a focus-visible ring at >=3:1 contrast against the row background."
+    }
+  ]
+}
+```
+
+### `/impeccable onboard` — Design a first-run flow that drives the user to a single activation step
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable onboard
+
+## Purpose
+Audit or draft the first-run experience: zero-state screens, primary
+activation step, and the first specific action a new user can take. Reject
+generic "Welcome!" patterns that don't move the user forward.
+
+## Inputs
+- `target` (required, `path`): repo or app directory.
+
+## Procedure
+1. Read `PRODUCT.md` if present to extract the product noun and primary
+   user job.
+2. Identify the activation step: the single action that converts a new
+   user into an engaged user (e.g. "send first invoice").
+3. Audit each empty state (per `ux-writing`) for entity + reason +
+   primary action.
+4. Audit the welcome screen for one primary CTA whose label names the
+   activation step (per `ux-writing`). Flag generic "Get started" /
+   "Welcome!" labels.
+5. Audit the activation step's flow for state completeness per
+   `interaction-design`: pending / success / failure all present.
+6. Draft any missing zero-state copy as `actions[]` patches (full file
+   contents only when no file exists; otherwise inline `fix`).
+7. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "onboard-report-v1",
+  "verdict": "pass",
+  "activationStep": "Send first invoice",
+  "changes": [
+    {
+      "category": "empty-state",
+      "ruleId": "onboard-vague-empty",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Invoices/Empty.tsx", "line": 8 },
+      "message": "Empty state says \"Nothing here yet\" without naming the activation step.",
+      "fix": "Replace with \"No invoices yet — send your first invoice to start tracking.\""
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"onboard-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `activationStep`: required string or `null` if it cannot be inferred.
+- `changes`: required array (use `[]` when none).
+- `category`: enum, one of `"welcome" | "empty-state" | "activation-flow" |
+  "copy" | "state"`.
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: No activation step can be identified **or** the activation flow
+  has no failure UI.
+- `warn`: Generic welcome copy, vague empty states, or missing zero-state
+  microcopy.
+- `pass`: `changes` is `[]` and `activationStep` is non-null.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable onboard target=.
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "onboard-report-v1",
+  "verdict": "warn",
+  "activationStep": "Send first invoice",
+  "changes": [
+    {
+      "category": "welcome",
+      "ruleId": "onboard-generic-welcome",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Welcome.tsx", "line": 12 },
+      "message": "Welcome CTA \"Get started\" does not name the activation step.",
+      "fix": "Replace with \"Send your first invoice\"."
+    }
+  ]
+}
+```
+
+### `/impeccable optimize` — Audit a target for layout-shift, paint cost, and request waterfall issues
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`, `impeccable-react`
+
+# /impeccable optimize
+
+## Purpose
+Surface the runtime cost issues that ship-blocking design correctness
+already implies: cumulative layout shift, paint-heavy transitions, and
+component-level fetch fan-out that violates layer boundaries.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Audit images, video, and embeds for `aspect-ratio` (or width/height)
+   per `responsive-design`. Missing declarations cause CLS on load.
+2. Audit transitions for paint-heavy properties (box-shadow on every
+   frame, filter on hover) per `motion-design`. Recommend transform /
+   opacity instead.
+3. Audit fonts for `font-display: swap` and explicit fallback metrics.
+   Missing settings cause FOIT or layout shift on load.
+4. Audit components for direct `fetch` calls (boundary violation per
+   `impeccable-react`). Each is a request waterfall risk because it
+   defeats screen-level orchestration.
+5. Audit list rendering for keyed reconciliation; flag missing or
+   index-based keys on dynamic lists.
+6. Audit `useEffect` for derived-state patterns that re-render twice;
+   recommend computing during render.
+7. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "optimize-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "category": "cls",
+      "ruleId": "optimize-missing-aspect-ratio",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/components/Avatar.tsx", "line": 6 },
+      "message": "Image has no width/height or aspect-ratio; layout will shift on load.",
+      "fix": "Add width/height attributes or aspect-ratio: 1 / 1."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"optimize-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `category`: enum, one of `"cls" | "paint" | "fonts" | "fetch" | "lists"
+  | "derived-state"`.
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: A component calls `fetch` or a raw API client directly (boundary
+  violation that produces request waterfalls) **or** a transition animates
+  paint-heavy properties (box-shadow, filter) on every frame on a
+  high-traffic surface.
+- `warn`: Missing aspect-ratio, missing font-display, missing list keys,
+  or derived state computed in `useEffect`.
+- `pass`: `changes` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable optimize target=src/screens/Billing
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "optimize-report-v1",
+  "verdict": "fail",
+  "changes": [
+    {
+      "category": "fetch",
+      "ruleId": "optimize-component-level-fetch",
+      "severity": "fail",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Billing/Card.tsx", "line": 8 },
+      "message": "Component calls fetch directly; defeats screen-level orchestration and creates a request waterfall.",
+      "fix": "Move the call into a typed lib/ hook and pass data down as props."
+    }
+  ]
+}
+```
+
+### `/impeccable overdrive` — Apply technically sophisticated effects only where they earn their cost
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable overdrive
+
+## Purpose
+Approve or reject candidates for technically sophisticated effects
+(parallax, view-transitions, FLIP animations, scroll-driven motion,
+shaders). Each approved effect must serve continuity, causality, or
+state, never spectacle.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Inventory candidates currently applied or proposed (parallax, scroll-
+   driven motion, view-transitions, FLIP, shaders, magnification).
+2. For each, identify the function it serves: continuity, causality,
+   wayfinding, depth-as-state. Reject candidates with no function.
+3. Verify each survives `prefers-reduced-motion` per `motion-design`
+   (the effect either disables fully or degrades to a static state).
+4. Verify each meets contrast and accessibility per `color-contrast`
+   even when the effect is inactive (no information lives only inside
+   the effect).
+5. Verify each can be paused or skipped via keyboard.
+6. Verify the cost is justified: no full-page parallax that costs paint
+   on every scroll without serving wayfinding.
+7. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "overdrive-report-v1",
+  "verdict": "pass",
+  "decisions": [
+    {
+      "effect": "view-transition",
+      "function": "continuity",
+      "ruleId": "overdrive-justified",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Billing/Detail.tsx", "line": 4 },
+      "approve": true,
+      "rationale": "Maintains spatial continuity between list and detail; survives reduced-motion via crossfade fallback."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"overdrive-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `decisions`: required array (use `[]` when none).
+- `effect`: required non-empty string naming the technique.
+- `function`: enum, one of `"continuity" | "causality" | "wayfinding" |
+  "depth-as-state" | "spectacle"`.
+- `approve`: required boolean. Must be `false` when `function ==
+  "spectacle"`.
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: A spectacle-only effect is currently applied **or** an effect
+  hides information that is not available without it.
+- `warn`: An approved effect lacks a reduced-motion fallback or a
+  keyboard pause/skip control.
+- `pass`: `decisions` contains only approved entries with full fallback
+  coverage, or `decisions` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable overdrive target=src/screens/Billing/Detail.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "overdrive-report-v1",
+  "verdict": "warn",
+  "decisions": [
+    {
+      "effect": "scroll-driven-parallax",
+      "function": "spectacle",
+      "ruleId": "overdrive-rejected-spectacle",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Billing/Detail.tsx", "line": 14 },
+      "approve": false,
+      "rationale": "Parallax serves no continuity or wayfinding here; remove it."
+    }
+  ]
+}
+```
+
+### `/impeccable polish` — Final-pass alignment against the design system before ship
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable polish
+
+## Purpose
+Resolve the residue that survives `critique` and `rewrite-generic`: token
+drift, hierarchy slips, and unfinished states. Polish never introduces
+features — it only aligns the target with the design contract recorded in
+`DESIGN.md` and the referenced rules.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Read `DESIGN.md` if present; treat its tokens as authoritative. If absent,
+   treat the dominant tokens in `target` as the authority for this run.
+2. Token alignment pass:
+   - Replace untokenized spacing, color, radius, and shadow values with the
+     nearest token, per `spatial-design` and `color-contrast`.
+3. Hierarchy alignment pass:
+   - Ensure three type tiers are present per `typography`.
+   - Ensure the accent appears at most once per viewport on the primary
+     action per `color-contrast`.
+4. State completeness pass:
+   - Verify default / hover / focus-visible / active / disabled per
+     `interaction-design`.
+   - Verify pending / success / failure states for every async action.
+5. Motion pass:
+   - Verify durations sit in 120–240ms (UI) and ≤ 400ms (page) per
+     `motion-design`.
+   - Verify a `prefers-reduced-motion` branch exists.
+6. Emit JSON that exactly matches the output schema. Each `change` is a
+   minimal patch description, not a rewrite.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "polish-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "category": "token",
+      "ruleId": "polish-untokenized-spacing",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 14
+      },
+      "message": "p-[13px] is not on the spacing scale.",
+      "fix": "Replace with p-3 (12px)."
+    }
+  ],
+  "residue": [
+    {
+      "category": "hierarchy",
+      "message": "Display tier is missing; cannot resolve without product input.",
+      "ruleId": "polish-missing-display-tier",
+      "antiPatternId": null
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"polish-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `residue`: required array of issues that polish cannot resolve mechanically
+  (use `[]` when none).
+- `category`: enum, one of `"token" | "hierarchy" | "state" | "motion"`.
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+- `fix`: minimal patch description; never a multi-step rewrite. If a fix
+  cannot be expressed as a single mechanical edit, move the item to
+  `residue`.
+
+## Severity rubric
+- `fail`: At least one `change` has `severity: "fail"` (e.g. a contrast
+  violation that polish cannot resolve without redesign) **or** a state from
+  `interaction-design` is entirely absent (e.g. no focus-visible style).
+- `warn`: All resolvable issues have `severity: "warn"`; at least one
+  `change` exists.
+- `pass`: `changes` is `[]` and `residue` is `[]`.
+
+Calibration rule: A missing focus-visible style on any interactive element
+classifies the entire run as `fail`, even if all other categories pass.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable polish target=src/screens/Billing
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "polish-report-v1",
+  "verdict": "warn",
+  "changes": [
+    {
+      "category": "token",
+      "ruleId": "polish-untokenized-spacing",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/screens/Billing/Card.tsx",
+        "line": 14
+      },
+      "message": "p-[13px] is not on the spacing scale.",
+      "fix": "Replace with p-3 (12px)."
+    },
+    {
+      "category": "motion",
+      "ruleId": "polish-overlong-duration",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/screens/Billing/Card.tsx",
+        "line": 27
+      },
+      "message": "transition duration 600ms exceeds the 240ms UI feedback band.",
+      "fix": "Reduce to duration-200 (200ms)."
+    }
+  ],
+  "residue": []
+}
+```
 
 ### `/impeccable pre-ship-gate` — Run the full pre-ship gate before merging UI changes
 
@@ -421,31 +2145,191 @@ You are reviewing a UI against the Impeccable UI gate.
 
 # /impeccable pre-ship-gate
 
-You are the last reviewer before this UI ships. Treat this as a hard gate.
+## Purpose
+Execute the full pre-ship quality gate and return a merge decision that can block release.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory under review.
 
 ## Procedure
-1. Walk the preflight checklist in `impeccable-ui`. Every unchecked box is a blocker.
-2. Walk the layer-boundary rules in `impeccable-react`. Any violation is a blocker.
-3. Walk the hard rules in `impeccable-typescript`. Any `any`, unparsed external data,
-   or duplicated domain type is a blocker.
-4. Cross-reference against the anti-pattern library. If a finding matches an
-   anti-pattern, cite the id (e.g. `generic-saas-card`).
-5. Produce a verdict.
+1. Run the `impeccable-ui` preflight checklist; each unchecked hard item is a blocker.
+2. Run `impeccable-react` layer-boundary checks; each violation is a blocker.
+3. Run `impeccable-typescript` hard-rule checks; each `any`, unparsed external data path, or duplicated domain type is a blocker.
+4. Cross-reference findings with the anti-pattern library and attach matching ids.
+5. Produce final verdict strictly from blocker presence.
+6. Emit JSON that exactly matches the output schema.
 
-## Output (JSON, conforms to `gate-report-v1`)
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
 
 ```json
 {
-  "verdict": "pass | fail",
+  "schemaVersion": "gate-report-v1",
+  "verdict": "pass",
   "blockers": [
-    { "rule": "ui-generic-saas-card", "where": "Card.tsx:11", "fix": "..." }
+    {
+      "ruleId": "ui-generic-saas-card",
+      "source": "impeccable-ui",
+      "antiPatternId": "generic-saas-card",
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 11
+      },
+      "message": "Generic SaaS card pattern detected.",
+      "fix": "Rewrite using strip → rank → tier protocol."
+    }
+  ],
+  "warnings": [
+    {
+      "ruleId": "ts-explicit-return-type",
+      "source": "impeccable-typescript",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/lib/math.ts",
+        "line": 20
+      },
+      "message": "Exported function has inferred return type.",
+      "fix": "Add explicit return type annotation."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"gate-report-v1"`.
+- `verdict`: enum, one of `"pass" | "fail"`.
+- `blockers`: required array (use `[]` when none).
+- `warnings`: required array (use `[]` when none).
+- `source`: enum, one of `"impeccable-ui" | "impeccable-react" | "impeccable-typescript"`.
+- `antiPatternId`: always present on each finding item; type is `string | null` (`null` when not applicable; never omit).
+- Every item must include `ruleId`, `location.path`, `location.line`, `message`, and `fix`.
+- Preserve key ordering exactly as shown (`ruleId`, `source`, `antiPatternId`, `location`, `message`, `fix`) for deterministic CI consumption.
+- Output must be strict, parseable JSON only (no markdown wrappers, comments, trailing commas, or extra top-level keys).
+
+## Severity rubric
+- `fail`: One or more `blockers` entries exist.
+- `pass`: `blockers` is empty.
+- Warnings never override blocker logic.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable pre-ship-gate target=src/screens/Billing
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "gate-report-v1",
+  "verdict": "fail",
+  "blockers": [
+    {
+      "ruleId": "ui-generic-saas-card",
+      "source": "impeccable-ui",
+      "antiPatternId": "generic-saas-card",
+      "location": {
+        "path": "src/screens/Billing/Card.tsx",
+        "line": 11
+      },
+      "message": "Generic SaaS card pattern detected.",
+      "fix": "Replace decorative hierarchy with ranked information hierarchy."
+    }
   ],
   "warnings": []
 }
 ```
 
-If `verdict` is `fail`, the change does not merge. Do not soften the verdict to
-keep the author moving. The whole point of the gate is that it can stop work.
+### `/impeccable quieter` — Reduce visual intensity on an over-loud target
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable quieter
+
+## Purpose
+Resolve over-stimulating UIs: too many accents, too many elevations, too
+many display-tier elements, too much motion. Restore one dominant signal
+per viewport.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Count accent colors on screen. If more than one accent encodes the
+   same semantic, collapse to one.
+2. Count display-tier elements on screen. If more than one, demote all
+   but the highest-priority to value tier.
+3. Count elevated surfaces (shadow > 0). If more than one, flatten all
+   but the highest-priority.
+4. Count concurrent motion loops (shimmer, pulse, marquee). If more than
+   one per surface, remove the redundant ones per `motion-design`.
+5. Reduce decorative gradients to neutral surfaces unless they encode
+   state per `color-contrast`.
+6. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "quieter-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "ruleId": "quieter-multiple-displays",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Dashboard.tsx", "line": 22 },
+      "message": "Three display-tier elements compete on the same viewport.",
+      "fix": "Demote two of the three to value tier; keep only the primary metric at display tier."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"quieter-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: More than three competing accents on a single viewport with no
+  semantic distinction.
+- `warn`: Multiple display-tier elements, multiple elevated surfaces,
+  decorative gradients, or concurrent motion loops.
+- `pass`: `changes` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable quieter target=src/screens/Dashboard.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "quieter-report-v1",
+  "verdict": "warn",
+  "changes": [
+    {
+      "ruleId": "quieter-multiple-elevations",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": { "path": "src/screens/Dashboard.tsx", "line": 8 },
+      "message": "Five card surfaces share the same shadow; depth becomes meaningless.",
+      "fix": "Flatten four of the five to surface-only and reserve elevation for the primary card."
+    }
+  ]
+}
+```
 
 ### `/impeccable rewrite-generic` — Rewrite a generic UI using the strip → rank → tier protocol
 
@@ -455,22 +2339,439 @@ keep the author moving. The whole point of the gate is that it can stop work.
 
 # /impeccable rewrite-generic
 
-You have been handed a UI that fails the Impeccable UI gate. Do not patch it.
-Rewrite it using the protocol from `impeccable-ui` section 4.
+## Purpose
+Replace a UI that fails the Impeccable gate by rewriting it with the strip → rank → tier protocol.
+
+## Inputs
+- `target` (required, `path`): component file to rewrite.
 
 ## Procedure
-1. **Strip.** Remove every shadow, gradient, rounded corner, and pill. Reduce
-   the component to monochrome rectangles.
-2. **Rank.** Identify the single most important element. Mark it. Rank
-   everything else relative to it. Anything that doesn't earn a rank gets cut.
-3. **Tier typography.** Three tiers: micro-label → value → display heading.
-4. **Re-introduce contrast.** One accent color, on the highest-priority
-   element and its action. Nowhere else.
-5. **Re-introduce shape.** Sharp on data surfaces, soft on the outer panel
-   only.
-6. **Re-introduce shadow.** At most one elevated surface per screen.
+1. **Strip**: remove shadows, gradients, rounded corners, and pills; reduce to monochrome blocks.
+2. **Rank**: identify one highest-priority element; rank all remaining elements or remove them.
+3. **Tier typography**: enforce exactly three tiers: micro-label → value → display heading.
+4. **Reintroduce contrast**: apply a single accent color only to the highest-priority element and its action.
+5. **Reintroduce shape**: keep data surfaces sharp; allow soft radius only on the outer panel.
+6. **Reintroduce shadow**: allow at most one elevated surface per screen.
+7. Produce a deterministic patch payload conforming to the output schema.
 
-## Output
-A unified diff against the original file. No commentary outside the diff. If
-the original cannot be salvaged inside its current footprint, output a full
-replacement instead of a patch and say so in the first line of the response.
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "rewrite-patch-v2",
+  "type": "patch",
+  "target": {
+    "path": "src/components/Card.tsx",
+    "context": "rewrite-generic"
+  },
+  "summary": "Rewrite applied with strip-rank-tier protocol.",
+  "patch": {
+    "format": "unified_diff",
+    "content": "diff --git a/src/components/Card.tsx b/src/components/Card.tsx\n..."
+  },
+  "rules": {
+    "noExtraCommentary": true
+  }
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"rewrite-patch-v2"`.
+- `type`: enum, must be either `"patch"` or `"full_replacement"`.
+- `target.path`: required string path exactly matching the input `target`.
+- `target.context`: required string, must be `"rewrite-generic"`.
+- `summary`: required non-empty string.
+- `rules.noExtraCommentary`: required boolean and must be `true`.
+- If `type == "patch"`:
+  - `patch.format`: required enum, must be `"unified_diff"`.
+  - `patch.content`: required non-empty unified diff string.
+- If `type == "full_replacement"`:
+  - `replacement.format`: required enum, must be `"full_file"`.
+  - `replacement.content`: required full post-rewrite file contents as UTF-8 text.
+  - Deterministic handling is required: the full replacement must be exactly what would result after applying the equivalent strip → rank → tier rewrite with no extra metadata, no alternate formatting variants, and a trailing newline.
+
+## Severity rubric
+- `fail`: Original UI fails gate; rewrite is mandatory.
+- `warn`: Rewrite is partial but still leaves non-blocking generic traits.
+- `pass`: Rewrite removes gate-failing generic patterns.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable rewrite-generic target=src/components/Card.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "rewrite-patch-v2",
+  "type": "patch",
+  "target": {
+    "path": "src/components/Card.tsx",
+    "context": "rewrite-generic"
+  },
+  "summary": "Demoted decorative styles, established hierarchy, and constrained accent usage.",
+  "patch": {
+    "format": "unified_diff",
+    "content": "diff --git a/src/components/Card.tsx b/src/components/Card.tsx\nindex 1111111..2222222 100644\n--- a/src/components/Card.tsx\n+++ b/src/components/Card.tsx\n@@ -1,4 +1,4 @@\n-...\n+...\n"
+  },
+  "rules": {
+    "noExtraCommentary": true
+  }
+}
+```
+
+### `/impeccable shape` — Plan UX/UI structure before any code is written
+
+**Inputs:** `brief` (string, required), `target` (path)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable shape
+
+## Purpose
+Produce a structural plan for a screen or flow before code is written.
+Resolve hierarchy, regions, primary action, and state inventory so the
+subsequent build cannot relapse into a generic SaaS template.
+
+## Inputs
+- `brief` (required, `string`): short description of the screen, feature, or
+  flow to be designed.
+- `target` (optional, `path`): repo or directory whose `DESIGN.md` should
+  anchor the plan.
+
+## Procedure
+1. Read `DESIGN.md` if `target` is provided. Otherwise treat the brief as the
+   sole authority and flag the absence.
+2. Identify the primary user task and the single highest-priority element
+   that supports it.
+3. Inventory regions: header, action rail, detail panel, list, empty state,
+   error state. For each region, decide whether it ships in v1.
+4. Resolve type tiers (per `typography`) and the primary accent (per the
+   project's `DESIGN.md`).
+5. Inventory required interaction states (per `interaction-design`):
+   default, hover, focus-visible, active, disabled, pending, success,
+   failure, empty.
+6. Draft microcopy stubs per `ux-writing`: primary button, error, empty.
+7. Emit JSON that exactly matches the output schema. Code is not produced.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "shape-report-v1",
+  "verdict": "pass",
+  "plan": {
+    "primaryTask": "Send an invoice",
+    "primaryElement": "Display tier total + Send invoice action",
+    "regions": [
+      { "name": "header", "include": true, "purpose": "context: client + due date" }
+    ],
+    "tiers": ["label", "value", "display"],
+    "accent": "cobalt",
+    "states": ["default", "focus-visible", "pending", "success", "failure", "empty"],
+    "microcopy": {
+      "primaryButton": "Send invoice",
+      "errorPrimary": "We couldn't reach the billing service. Retry, or contact support if the issue persists.",
+      "emptyPrimary": "No invoices yet — send your first invoice to start tracking."
+    }
+  },
+  "findings": []
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"shape-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `plan`: object; all keys shown are required.
+- `plan.regions`: array; each entry has `name`, `include` (boolean),
+  `purpose`.
+- `plan.states`: array of string state names (no duplicates).
+- `findings`: required array (use `[]` when none); standard finding shape
+  used for missing inputs (e.g. `DESIGN.md` not present).
+
+## Severity rubric
+- `fail`: The brief does not name a primary task or primary element.
+- `warn`: Plan resolves but `DESIGN.md` is missing, or a required state is
+  not included.
+- `pass`: Plan is complete and grounded in `DESIGN.md`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable shape brief="Invoice send screen for billing app" target=.
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "shape-report-v1",
+  "verdict": "pass",
+  "plan": {
+    "primaryTask": "Send an invoice",
+    "primaryElement": "Display tier total + Send invoice action",
+    "regions": [
+      { "name": "header", "include": true, "purpose": "context: client + due date" },
+      { "name": "lineItems", "include": true, "purpose": "auditable totals" },
+      { "name": "actionRail", "include": true, "purpose": "primary + secondary actions" }
+    ],
+    "tiers": ["label", "value", "display"],
+    "accent": "cobalt",
+    "states": ["default", "focus-visible", "pending", "success", "failure", "empty"],
+    "microcopy": {
+      "primaryButton": "Send invoice",
+      "errorPrimary": "We couldn't reach the billing service. Retry, or contact support if the issue persists.",
+      "emptyPrimary": "No invoices yet — send your first invoice to start tracking."
+    }
+  },
+  "findings": []
+}
+```
+
+### `/impeccable teach` — One-time setup that captures product context and design tokens
+
+**Inputs:** `target` (path)
+
+**Uses skills:** `impeccable-ui`, `impeccable-react`, `impeccable-typescript`
+
+# /impeccable teach
+
+## Purpose
+Bootstrap the design contract. Learn the product, infer or capture the visual
+system, and emit a planning report whose `actions` block writes `PRODUCT.md`
+and `DESIGN.md` into the repo so subsequent commands have explicit context to
+align against.
+
+## Inputs
+- `target` (optional, `path`): repo root or app directory. Defaults to CWD.
+
+## Procedure
+1. Walk `target` and collect signals:
+   - `package.json`, `README.md`, top-level routes, screen filenames.
+   - The most-imported components and the props they expose.
+   - Spacing, color, radius, shadow, and font tokens (Tailwind config, CSS
+     custom properties, design-token files, or the most-repeated literals).
+2. Identify the product entity (e.g. "projects", "invoices", "incidents") by
+   the dominant noun across routes, schemas, and component names.
+3. Identify the dominant accent color and verify it encodes a state per the
+   `color-contrast` reference. Mark unresolved accents as findings.
+4. Identify the type tier set per the `typography` reference. If fewer than
+   three tiers are detectable, mark as a finding.
+5. Identify the spacing scale per the `spatial-design` reference. If
+   spacing is untokenized (frequent magic px values), mark as a finding.
+6. Draft two files as `actions[]` patches the harness will write:
+   - `PRODUCT.md` — product noun, primary user, top three jobs-to-be-done,
+     critical-path screens.
+   - `DESIGN.md` — type tiers, accent semantics, spacing scale, radius roles,
+     elevation levels, motion durations, banned patterns.
+7. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "teach-report-v1",
+  "verdict": "pass",
+  "summary": {
+    "productNoun": "project",
+    "primaryAccent": "cobalt",
+    "spacingScale": [4, 8, 12, 16, 24, 32, 48, 64],
+    "typeTiers": ["label", "value", "display"]
+  },
+  "findings": [
+    {
+      "ruleId": "teach-untokenized-spacing",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/Card.tsx",
+        "line": 12
+      },
+      "message": "11 magic spacing values detected; spacing scale is undefined.",
+      "fix": "Codify a 4/8/12/16/24/32/48/64 scale in DESIGN.md and replace literals."
+    }
+  ],
+  "actions": [
+    {
+      "kind": "write",
+      "path": "PRODUCT.md",
+      "contents": "# Product\n..."
+    },
+    {
+      "kind": "write",
+      "path": "DESIGN.md",
+      "contents": "# Design system\n..."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"teach-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `summary`: object; all four keys required (use `null` if a value cannot be
+  inferred — never omit a key).
+- `summary.spacingScale`: array of integers in ascending order, or `null`.
+- `summary.typeTiers`: array of `"label" | "value" | "display"`, or `null`.
+- `findings`: required array (use `[]` when none).
+- `actions`: required array; each entry has `kind: "write"`, `path`
+  (repo-relative), and `contents` (full file body).
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based), or `null` when the finding is repo-wide.
+
+## Severity rubric
+- `fail`: A primary signal cannot be resolved (no accent at all, no type
+  tiers, no spacing rhythm). The repo is too unstructured to teach from.
+- `warn`: Signals are resolvable but at least one is weak (e.g. only two type
+  tiers, accent without state semantics).
+- `pass`: All four summary keys resolved with confidence; `findings` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable teach target=.
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "teach-report-v1",
+  "verdict": "warn",
+  "summary": {
+    "productNoun": "project",
+    "primaryAccent": "cobalt",
+    "spacingScale": [4, 8, 12, 16, 24, 32],
+    "typeTiers": ["label", "value"]
+  },
+  "findings": [
+    {
+      "ruleId": "teach-collapsed-tiers",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/ProjectCard.tsx",
+        "line": 8
+      },
+      "message": "Only two type tiers detected; display tier is missing.",
+      "fix": "Introduce a display tier for the primary value on each screen."
+    }
+  ],
+  "actions": [
+    {
+      "kind": "write",
+      "path": "PRODUCT.md",
+      "contents": "# Product\n\n- Noun: project\n- Primary user: program manager\n- Top jobs: scope, status, ownership\n"
+    },
+    {
+      "kind": "write",
+      "path": "DESIGN.md",
+      "contents": "# Design system\n\n## Type tiers\n- label: 12px, uppercase, muted\n- value: 14px, semibold, ink\n- display: 28px, bold, ink (one per viewport)\n\n## Accent\n- cobalt: action; reserved for the primary CTA.\n\n## Spacing scale\n4 / 8 / 12 / 16 / 24 / 32\n"
+    }
+  ]
+}
+```
+
+### `/impeccable typeset` — Audit and align type hierarchy against the typography reference
+
+**Inputs:** `target` (path, required)
+
+**Uses skills:** `impeccable-ui`
+
+# /impeccable typeset
+
+## Purpose
+Verify three type tiers exist, body/value text never falls below 14px, and
+the value tier is visibly stronger than the label tier.
+
+## Inputs
+- `target` (required, `path`): component, screen, or directory.
+
+## Procedure
+1. Inventory every text element in the target and assign each to label,
+   value/body, or display tier.
+2. Flag screens with fewer than three tiers or more than one display-size
+   element per viewport.
+3. Flag body/value text below 14px.
+4. Flag tier collapse: label and value sharing the same size and weight.
+5. Verify adjacent tier sizes step by ≥ 2px and ≤ 1.5×, except the single
+   transition into the display tier.
+6. Verify text alignment matches layout anchoring (no centered titles in
+   left-anchored layouts).
+7. Emit JSON that exactly matches the output schema.
+
+## Output schema
+Return **only** JSON with this exact shape and stable key order:
+
+```json
+{
+  "schemaVersion": "typeset-report-v1",
+  "verdict": "pass",
+  "changes": [
+    {
+      "ruleId": "typeset-collapsed-tiers",
+      "severity": "warn",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/ProjectCard.tsx",
+        "line": 12
+      },
+      "message": "Label and value share size 14px and weight 500.",
+      "fix": "Drop label to 12px uppercase tracked-wide; raise value to semibold."
+    }
+  ]
+}
+```
+
+Contract requirements:
+- `schemaVersion`: enum, must be `"typeset-report-v1"`.
+- `verdict`: enum, one of `"pass" | "warn" | "fail"`.
+- `changes`: required array (use `[]` when none).
+- `severity`: enum, one of `"warn" | "fail"`.
+- `antiPatternId`: string or `null`.
+- `location.line`: integer (1-based).
+
+## Severity rubric
+- `fail`: Body/value text below 14px **or** more than one display-size
+  element per viewport.
+- `warn`: Fewer than three tiers, collapsed label/value styling, or rhythm
+  jumps outside the 2px / 1.5× window.
+- `pass`: `changes` is `[]`.
+
+## Example invocation + example output
+Invocation:
+
+```text
+/impeccable typeset target=src/components/ProjectCard.tsx
+```
+
+Example output:
+
+```json
+{
+  "schemaVersion": "typeset-report-v1",
+  "verdict": "fail",
+  "changes": [
+    {
+      "ruleId": "typeset-sub-floor-body",
+      "severity": "fail",
+      "antiPatternId": null,
+      "location": {
+        "path": "src/components/ProjectCard.tsx",
+        "line": 18
+      },
+      "message": "Value text rendered at 12px violates the 14px floor.",
+      "fix": "Raise value text to 14px and reserve 12px for the label tier."
+    }
+  ]
+}
+```

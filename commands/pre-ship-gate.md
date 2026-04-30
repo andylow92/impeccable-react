@@ -14,8 +14,7 @@ uses_skills:
   - impeccable-ui
   - impeccable-react
   - impeccable-typescript
-uses_references:
-  - anti-pattern-library
+uses_references: []
 severity_threshold: fail
 ---
 
