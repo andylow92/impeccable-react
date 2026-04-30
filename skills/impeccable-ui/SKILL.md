@@ -12,6 +12,7 @@ applies_to:
 references:
   - typography
   - color-contrast
+  - palette-design
   - spatial-design
   - motion-design
   - interaction-design
@@ -20,6 +21,8 @@ references:
 anti_patterns:
   - generic-saas-card
   - uniform-radius
+  - gray-on-gray
+  - tailwind-default-palette
 commands:
   - critique-ui
   - rewrite-generic
@@ -44,6 +47,7 @@ commands:
   - overdrive
   - optimize
   - live
+  - colorize
 ---
 
 # Impeccable UI
