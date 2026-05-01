@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import { loadSkills } from "../../src/skills/index.js";
 import { loadCommands } from "../../src/commands/index.js";
 
@@ -176,5 +178,100 @@ test("dashboard/form-flow/landing packs include non-empty core sections", () => 
     const sourcePath = resolve("skills/impeccable-ui", file);
     const markdown = readFileSync(sourcePath, "utf8");
     assertNonEmptySectionBodies(markdown, CORE_PACK_SECTIONS, `pack ${file}`);
+  }
+});
+
+test("verify-skills reports unresolved uses_references with command path, missing id, and known ids", () => {
+  const fixtureRoot = mkdtempSync(resolve(tmpdir(), "verify-skills-fixture-"));
+  try {
+    mkdirSync(resolve(fixtureRoot, "skills/demo/references"), { recursive: true });
+    mkdirSync(resolve(fixtureRoot, "commands"), { recursive: true });
+
+    writeFileSync(
+      resolve(fixtureRoot, "skills/demo/SKILL.md"),
+      `---
+id: demo
+name: Demo Skill
+version: 1.0.0
+summary: demo
+voice: directive
+applies_to: []
+references:
+  - known-ref
+anti_patterns: []
+commands: []
+---
+
+# Demo
+`,
+    );
+
+    writeFileSync(
+      resolve(fixtureRoot, "skills/demo/references/known-ref.md"),
+      `---
+id: known-ref
+parent: demo
+summary: known
+---
+
+# Known ref
+
+## Intent
+x
+## Non-negotiable rules
+x
+## Anti-patterns and failure cues
+x
+## Rewrite protocol
+x
+## Quick pass/fail checklist
+x
+## Before/after mini examples
+x
+`,
+    );
+
+    writeFileSync(
+      resolve(fixtureRoot, "commands/bad-command.md"),
+      `---
+id: bad-command
+name: Bad command
+version: 1.0.0
+summary: bad
+uses_skills:
+  - demo
+uses_references:
+  - missing-ref
+output_schema: {}
+---
+
+# Bad command
+## Purpose
+x
+## Inputs
+x
+## Procedure
+x
+## Output schema
+x
+## Severity rubric
+x
+## Example invocation + example output
+x
+`,
+    );
+
+    const tsxLoader = resolve("node_modules/tsx/dist/loader.mjs");
+    const verifyScript = resolve("scripts/verify-skills.ts");
+    const result = spawnSync("node", ["--import", tsxLoader, verifyScript], {
+      cwd: fixtureRoot,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /commands\/bad-command\.md/);
+    assert.match(result.stderr, /missing-ref/);
+    assert.match(result.stderr, /known-ref/);
+  } finally {
+    rmSync(fixtureRoot, { recursive: true, force: true });
   }
 });

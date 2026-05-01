@@ -148,11 +148,12 @@ function main(): void {
     }
     for (const refId of c.uses_references) {
       if (!allReferenceIds.has(refId)) {
+        const knownIds = [...allReferenceIds].sort();
         problems.push({
           kind: "error",
           where: c.sourcePath,
           field: "uses_references",
-          message: `references unknown reference "${refId}" — known ids: ${[...allReferenceIds].sort().join(", ") || "(none)"}`,
+          message: `unresolved uses_references id "${refId}" in command "${c.sourcePath}" — known ids: ${knownIds.join(", ") || "(none)"}`,
         });
       }
     }
